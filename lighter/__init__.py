@@ -3,6 +3,7 @@ Lighter SDK - Full Implementation for Valiant Bot
 REST API client for Lighter DEX (zkLighter)
 """
 import logging
+import os
 import requests
 import json
 from typing import Optional, Dict, Any, List
@@ -23,6 +24,16 @@ class ApiClient:
     def __init__(self, configuration: Configuration = None):
         self.config = configuration or Configuration()
         self.session = requests.Session()
+        
+        # Add proxy if configured (to bypass Cloudflare from datacenter IPs)
+        proxy_url = os.getenv('LIGHTER_PROXY_URL')
+        if proxy_url:
+            self.session.proxies = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
+            logger.info(f"Using proxy for Lighter API")
+        
         self.session.headers.update({
             'Content-Type': 'application/json',
             'Accept': 'application/json'

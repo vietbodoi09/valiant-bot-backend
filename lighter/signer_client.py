@@ -22,6 +22,17 @@ class SignerClient:
         self.account_index = account_index
         self.api_private_keys = api_private_keys
         self.session = requests.Session()
+        
+        # Add proxy if configured
+        import os
+        proxy_url = os.getenv('LIGHTER_PROXY_URL')
+        if proxy_url:
+            self.session.proxies = {
+                'http': proxy_url,
+                'https': proxy_url
+            }
+            logger.info(f"SignerClient using proxy")
+        
         self.session.headers.update({
             'Content-Type': 'application/json',
             'Accept': 'application/json'
