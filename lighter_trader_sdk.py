@@ -183,7 +183,7 @@ class LighterSDKTrader:
             return 0.0
         except lighter.exceptions.ApiException as e:
             if e.status == 403:
-                logger.error(f"Funding API 403: Authentication failed. Check API key for account {self.account_index}")
+                logger.error(f"Funding API 403: {e.body}")
             else:
                 logger.warning(f"Funding API error {e.status}: {e.reason}")
             return 0.0
@@ -219,8 +219,9 @@ class LighterSDKTrader:
             return 0.0
         except lighter.exceptions.ApiException as e:
             if e.status == 403:
-                logger.error(f"Account API 403: Cannot access account {self.account_index}. "
-                           f"Possible causes: 1) Wrong account index, 2) API key not registered, 3) IP blocked")
+                logger.error(f"Account API 403: Cannot access account {self.account_index}")
+                logger.error(f"Response body: {e.body}")
+                logger.error("Possible causes: Account not registered, key expired, or insufficient permissions")
             else:
                 logger.warning(f"Account API error {e.status}: {e.reason}")
             return 0.0
@@ -283,7 +284,7 @@ class LighterSDKTrader:
             return None
         except lighter.exceptions.ApiException as e:
             if e.status == 403:
-                logger.error(f"Price API 403: Cannot access market {market_id}")
+                logger.error(f"Price API 403: {e.body}")
             return None
         except Exception as e:
             logger.debug(f"Failed to get price: {e}")
