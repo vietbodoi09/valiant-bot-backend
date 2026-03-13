@@ -69,8 +69,9 @@ class BotConfig(BaseModel):
 class APIKeys(BaseModel):
     valiant_agent_key: str
     valiant_master_address: str
-    lighter_api_key: str  # JSON string
-    lighter_account_index: int = 0
+    lighter_api_key: str  # JSON string: {"2": "private_key"}
+    lighter_account_index: int = 0  # Lighter account ID (e.g., 719083)
+    lighter_api_key_index: int = 2  # Which API key to use (e.g., 2)
 
 class StartRequest(BaseModel):
     config: BotConfig
@@ -221,6 +222,7 @@ class BotSession:
             os.environ["VALIANT_MASTER_ADDRESS"] = self.api_keys.valiant_master_address
             os.environ["LIGHTER_API_PRIVATE_KEYS"] = self.api_keys.lighter_api_key
             os.environ["LIGHTER_ACCOUNT_INDEX"] = str(self.api_keys.lighter_account_index)
+            os.environ["LIGHTER_API_KEY_INDEX"] = str(self.api_keys.lighter_api_key_index)
             
             self.bot = BotRunner(self.config.dict(), self)
             await self.bot.run()
@@ -369,29 +371,33 @@ async def start_bot(request: StartRequest):
     logger.info(f"  Valiant Master: {request.api_keys.valiant_master_address[:10]}..." if request.api_keys.valiant_master_address else "  Valiant Master: EMPTY")
     logger.info(f"  Lighter API Key: {'Set (length: ' + str(len(request.api_keys.lighter_api_key)) + ')' if request.api_keys.lighter_api_key else 'EMPTY'}")
     logger.info(f"  Lighter Account Index: {request.api_keys.lighter_account_index}")
+    logger.info(f"  Lighter API Key Index: {request.api_keys.lighter_api_key_index}")
     
     # Validate Lighter config first
     try:
         lighter_keys = json.loads(request.api_keys.lighter_api_key)
         account_idx = request.api_keys.lighter_account_index
+        api_key_idx = request.api_keys.lighter_api_key_index
         
-        logger.info(f"  Parsed Lighter keys for accounts: {list(lighter_keys.keys())}")
+        logger.info(f"  Parsed Lighter API keys for indices: {list(lighter_keys.keys())}")
         
-        if str(account_idx) not in lighter_keys:
+        # Check if the API key index exists in the keys
+        if str(api_key_idx) not in lighter_keys:
             available = list(lighter_keys.keys())
-            logger.error(f"Account {account_idx} not found in keys. Available: {available}")
+            logger.error(f"API key index {api_key_idx} not found. Available: {available}")
             raise HTTPException(
                 status_code=400, 
-                detail=f"Lighter account {account_idx} not found in API keys. Available: {available}"
+                detail=f"Lighter API key index {api_key_idx} not found. Available: {available}"
             )
         
-        if not lighter_keys.get(str(account_idx)):
+        if not lighter_keys.get(str(api_key_idx)):
             raise HTTPException(
                 status_code=400,
-                detail=f"Lighter API key for account {account_idx} is empty"
+                detail=f"Lighter API key for index {api_key_idx} is empty"
             )
         
-        logger.info(f"  Account {account_idx} key found: Yes (length: {len(lighter_keys[str(account_idx)])})")
+        logger.info(f"  API key index {api_key_idx} found: Yes (length: {len(lighter_keys[str(api_key_idx)])})")
+        logger.info(f"  Account ID {account_idx} will use API key {api_key_idx}")
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in lighter_api_key: {e}")
         raise HTTPException(

@@ -17,9 +17,10 @@ class SignerClient:
     Handles order signing and submission to Lighter API
     """
     
-    def __init__(self, url: str, account_index: int, api_private_keys: Dict[int, str]):
+    def __init__(self, url: str, account_index: int, api_key_index: int, api_private_keys: Dict[int, str]):
         self.url = url.rstrip('/')
-        self.account_index = account_index
+        self.account_index = account_index  # Lighter account ID (e.g., 719083)
+        self.api_key_index = api_key_index  # Which API key to use (e.g., 2)
         self.api_private_keys = api_private_keys
         self.session = requests.Session()
         
@@ -38,20 +39,20 @@ class SignerClient:
             'Accept': 'application/json'
         })
         self._connected = False
-        logger.info(f"SignerClient initialized for account {account_index}")
+        logger.info(f"SignerClient initialized for account {account_index} (API key {api_key_index})")
         
     def check_client(self) -> Optional[str]:
         """Check if client is properly configured"""
         if not self.api_private_keys:
             return "No API keys provided"
-        if self.account_index not in self.api_private_keys:
-            return f"No API key for account index {self.account_index}"
+        if self.api_key_index not in self.api_private_keys:
+            return f"No API key for API index {self.api_key_index}. Available: {list(self.api_private_keys.keys())}"
         self._connected = True
         return None
         
     def _get_private_key(self) -> str:
-        """Get private key for current account"""
-        return self.api_private_keys.get(self.account_index, "")
+        """Get private key for current API key index"""
+        return self.api_private_keys.get(self.api_key_index, "")
     
     def _sign_message(self, message: str) -> str:
         """Sign a message with the private key (simplified)"""

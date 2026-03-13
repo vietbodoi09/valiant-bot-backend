@@ -40,9 +40,10 @@ class ApiClient:
         })
         
         if self.config.api_key:
+            # Lighter uses x-api-key header, not Bearer
             self.session.headers.update({
-                'Authorization': f'Bearer {self.config.api_key}',
-                'X-API-Key': self.config.api_key
+                'x-api-key': self.config.api_key,
+                'Content-Type': 'application/json'
             })
         
     async def call_api(self, path: str, method: str = "GET", **kwargs) -> Any:

@@ -61,8 +61,13 @@ class LighterSDKTrader:
             try:
                 parsed_keys = json.loads(keys_json)
                 self.api_private_keys = {int(k): v for k, v in parsed_keys.items()}
+                # account_index is the Lighter account ID (e.g., 719083)
+                # api_key_index is which key to use from privateKeys (e.g., 2)
                 self.account_index = int(account_index_str)
-                logger.info(f"Loaded private keys for accounts: {list(self.api_private_keys.keys())}")
+                # Default to first available key index if not specified
+                self.api_key_index = int(os.getenv("LIGHTER_API_KEY_INDEX", list(self.api_private_keys.keys())[0]))
+                logger.info(f"Account index: {self.account_index}, API key index: {self.api_key_index}")
+                logger.info(f"Loaded private keys for API indices: {list(self.api_private_keys.keys())}")
                 
                 # Create api_key_config.json file for SDK compatibility
                 self._create_config_file()
@@ -78,6 +83,7 @@ class LighterSDKTrader:
             self.account_index = cfg["accountIndex"]
             # Convert string keys to int
             self.api_private_keys = {int(k): v for k, v in cfg["privateKeys"].items()}
+            self.api_key_index = list(self.api_private_keys.keys())[0]
         else:
             raise ValueError("No Lighter config found. Set LIGHTER_API_PRIVATE_KEYS env var")
     
@@ -118,10 +124,13 @@ class LighterSDKTrader:
             if api_key:
                 logger.info(f"API Key configured for account {self.account_index}")
             
-            # Signer client cho trading (đã fix để chạy trên Windows)
+            # Signer client cho trading
+            # account_index: Lighter account ID (e.g., 719083)
+            # api_key_index: Which API key to use (e.g., 2)
             self.signer_client = SignerClient(
                 url=self.base_url,
                 account_index=self.account_index,
+                api_key_index=self.api_key_index,
                 api_private_keys=self.api_private_keys,
             )
             
