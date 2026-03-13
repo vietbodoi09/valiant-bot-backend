@@ -114,11 +114,13 @@ class LighterSDKTrader:
             config = lighter.Configuration(host=self.base_url)
             self.api_client = lighter.ApiClient(configuration=config)
             
-            # Add API key to default headers
+            # Add API key to session headers
             api_key = self.api_private_keys.get(self.account_index, "")
             if api_key:
-                self.api_client.default_headers['Authorization'] = f'Bearer {api_key}'
-                self.api_client.default_headers['X-API-Key'] = api_key
+                self.api_client.session.headers.update({
+                    'Authorization': f'Bearer {api_key}',
+                    'X-API-Key': api_key
+                })
                 logger.info(f"API Key headers set for account {self.account_index}")
             
             # Signer client cho trading (đã fix để chạy trên Windows)
