@@ -227,12 +227,19 @@ class LighterSDKTrader:
                 url = f"{self.base_url}/v1/account?by=index&value={self.account_index}"
                 
                 logger.debug(f"Testing balance API with auth header...")
+                logger.info(f"Request URL: {url}")
+                logger.info(f"Account index: {self.account_index}")
                 async with session.get(url, headers=headers) as resp:
+                    text = await resp.text()
                     if resp.status == 403:
-                        text = await resp.text()
-                        logger.error(f"Raw request 403: {text}")
+                        logger.error(f"Raw request 403 - Response: '{text}'")
+                        logger.error(f"Headers sent: {list(headers.keys())}")
+                        logger.error("CAUSE: Account not activated on Lighter. Visit https://zklighter.io to deposit USDC first.")
                     elif resp.status == 200:
                         logger.info(f"Raw request success! Balance API accessible")
+                        logger.info(f"Response: {text[:200]}")
+                    else:
+                        logger.warning(f"Raw request {resp.status}: {text[:200]}")
             
             # Fallback to SDK
             account_api = lighter.AccountApi(self.api_client)
