@@ -262,29 +262,41 @@ class BotRunner:
         self.manager.add_log("Hedge mode completed")
     
     async def _close_hedge(self):
-        """Close hedge positions"""
+        """Close hedge positions - use market orders for guaranteed close"""
         try:
-            # HL close
-            hl_close = self.bot2.hl.maker_close()
-            self.manager.add_log(f"HL closed: {'OK' if not hl_close.get('error') else hl_close.get('error')}")
+            self.manager.add_log("Closing all positions...")
+            
+            # HL close - use market_close for guaranteed fill
+            hl_pos = self.bot2.hl.get_position()
+            if hl_pos and abs(float(hl_pos.get("size", 0))) > 0.00001:
+                self.manager.add_log(f"Closing HL position: {hl_pos.get('size')} BTC")
+                hl_close = self.bot2.hl.close_position()  # market close
+                self.manager.add_log(f"HL closed: {'OK' if not hl_close.get('error') else hl_close.get('error')}")
+            else:
+                self.manager.add_log("No HL position to close")
             
             # Lighter close
             if self.bot2.lighter.connected:
-                await asyncio.sleep(15)  # Rate limit
-                lighter_close = await self.bot2.lighter.close_position()
-                self.manager.add_log(f"Lighter closed: {lighter_close.get('status', 'unknown')}")
+                lighter_pos = await self.bot2.lighter.get_position()
+                if lighter_pos and lighter_pos.get("size", 0) > 0.00001:
+                    await asyncio.sleep(15)  # Rate limit
+                    lighter_close = await self.bot2.lighter.close_position()
+                    self.manager.add_log(f"Lighter closed: {lighter_close.get('status', 'unknown')}")
+                else:
+                    self.manager.add_log("No Lighter position to close")
             
             # Verify HL closed
             await asyncio.sleep(1)
             hl_pos = self.bot2.hl.get_position()
             if hl_pos and abs(float(hl_pos.get("size") or 0)) > 0.00001:
-                self.manager.add_log("HL still open, retrying...")
+                self.manager.add_log("HL still open, force closing...")
                 self.bot2.hl.close_position()
             
             # Clear cached position
             self.bot2.lighter.last_position = None
             
             await self._update_positions()
+            self.manager.add_log("All positions closed")
             
         except Exception as e:
             self.manager.add_log(f"Close error: {e}")
