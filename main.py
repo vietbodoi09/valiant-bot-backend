@@ -239,7 +239,13 @@ class BotSession:
         if not self.is_running:
             return {"status": "not_running"}
         
+        # Prevent double-stop
+        if getattr(self, '_is_stopping', False):
+            return {"status": "already_stopping"}
+        self._is_stopping = True
+        
         self.is_running = False
+        self.add_log("Stopping bot and closing all positions...")
         
         if self.bot_task:
             self.bot_task.cancel()
@@ -249,8 +255,12 @@ class BotSession:
                 pass
         
         if self.bot:
-            await self.bot.stop()
+            try:
+                await self.bot.stop()
+            except Exception as e:
+                self.add_log(f"Error during stop: {e}")
         
+        self._is_stopping = False
         self.add_log("Bot STOPPED by user")
         return {"status": "stopped"}
 
