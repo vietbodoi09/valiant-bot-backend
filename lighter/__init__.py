@@ -15,6 +15,7 @@ logger = logging.getLogger("lighter")
 class Configuration:
     """Lighter API Configuration"""
     host: str = "https://mainnet.zklighter.elliot.ai"
+    api_key: str = None
 
 class ApiClient:
     """REST API Client for Lighter"""
@@ -26,6 +27,12 @@ class ApiClient:
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         })
+        
+        if self.config.api_key:
+            self.session.headers.update({
+                'Authorization': f'Bearer {self.config.api_key}',
+                'X-API-Key': self.config.api_key
+            })
         
     async def call_api(self, path: str, method: str = "GET", **kwargs) -> Any:
         """Make API call"""

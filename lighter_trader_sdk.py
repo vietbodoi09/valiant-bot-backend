@@ -111,17 +111,12 @@ class LighterSDKTrader:
         """Khởi tạo kết nối"""
         try:
             # REST API client cho read operations
-            config = lighter.Configuration(host=self.base_url)
+            api_key = self.api_private_keys.get(self.account_index, "")
+            config = lighter.Configuration(host=self.base_url, api_key=api_key)
             self.api_client = lighter.ApiClient(configuration=config)
             
-            # Add API key to session headers
-            api_key = self.api_private_keys.get(self.account_index, "")
             if api_key:
-                self.api_client.session.headers.update({
-                    'Authorization': f'Bearer {api_key}',
-                    'X-API-Key': api_key
-                })
-                logger.info(f"API Key headers set for account {self.account_index}")
+                logger.info(f"API Key configured for account {self.account_index}")
             
             # Signer client cho trading (đã fix để chạy trên Windows)
             self.signer_client = SignerClient(
