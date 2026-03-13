@@ -95,18 +95,27 @@ class HyperliquidTrader:
         Dùng ValiantExchange.limit_order (đã test OK) với giá từ BBO.
         """
         is_buy = side.lower() in ("long", "buy")
-        hl_side = "buy" if is_buy else "sell"
         
         # Lấy BBO tươi nhất
         bbo = self.get_bbo()
         if bbo:
             limit_price = bbo["bid"] if is_buy else bbo["ask"]
-            logger.info(f"  📋 ALO {hl_side.upper()} {size_btc:.6f} BTC @ ${limit_price:.1f} (bid=${bbo['bid']:.1f} ask=${bbo['ask']:.1f})")
         else:
             # Fallback: mid - 2 tick
             TICK = 2.0
             limit_price = (price or 70000) - TICK if is_buy else (price or 70000) + TICK
-            logger.info(f"  📋 ALO {hl_side.upper()} {size_btc:.6f} BTC @ ${limit_price:.1f} (no BBO)")
+        
+        return self._maker_order_with_price(side, size_btc, limit_price, bbo)
+    
+    def _maker_order_with_price(self, side: str, size_btc: float, limit_price: float, bbo: dict = None) -> Dict:
+        """Đặt ALO với giá cụ thể (để retry)"""
+        is_buy = side.lower() in ("long", "buy")
+        hl_side = "buy" if is_buy else "sell"
+        
+        if bbo:
+            logger.info(f"  📋 ALO {hl_side.upper()} {size_btc:.6f} BTC @ ${limit_price:.1f} (bid=${bbo['bid']:.1f} ask=${bbo['ask']:.1f})")
+        else:
+            logger.info(f"  📋 ALO {hl_side.upper()} {size_btc:.6f} BTC @ ${limit_price:.1f}")
         
         # Dùng ValiantExchange.limit_order (đã handle round + margin check)
         result = self.exchange.limit_order(self.symbol, hl_side, size_btc, limit_price, tif="Alo")
@@ -193,15 +202,34 @@ class HyperliquidTrader:
                             logger.info(f"  ✅ Position detected after cancel! Size={pos_size:.6f} BTC")
                             return {"status": "filled", "filled_size": pos_size, "note": "filled_during_cancel"}
                         
-                        logger.warning(f"  ⏰ Maker timeout after {max_wait_sec}s, falling back to MARKET")
-                        return self.market_order(side, size_usd)
+                        logger.error(f"  ⏰ Maker timeout after {max_wait_sec}s, not filled")
+                        return {"error": f"Maker order timeout after {max_wait_sec}s, not filled", "status": "error"}
                     
-                    # Error trong status - fallback to market
+                    # Error trong status - retry with adjusted price
                     if "error" in status:
                         error_msg = status['error']
                         logger.error(f"  ALO rejected: {error_msg}")
-                        logger.warning(f"  Falling back to MARKET order (taker fee)")
-                        return self.market_order(side, size_usd)
+                        
+                        # If "Post only order would have immediately matched", adjust price and retry
+                        if "immediately matched" in error_msg.lower() or "post only" in error_msg.lower():
+                            logger.info(f"  Retrying ALO with adjusted price...")
+                            # Wait a moment and get fresh BBO
+                            import time
+                            time.sleep(0.5)
+                            fresh_bbo = self.get_bbo()
+                            if fresh_bbo:
+                                # Adjust price by 1 tick away from mid
+                                TICK = 1.0
+                                if is_buy:
+                                    new_price = fresh_bbo["bid"] - TICK
+                                else:
+                                    new_price = fresh_bbo["ask"] + TICK
+                                logger.info(f"  Retrying ALO @ ${new_price:.1f} (was ${limit_price:.1f})")
+                                # Recalculate size for new price
+                                new_size_btc = size_usd / new_price
+                                return self._maker_order_with_price(side, new_size_btc, new_price)
+                        
+                        return {"error": status["error"], "status": "error"}
             
             # Không parse được → error
             logger.error(f"  Unexpected response: {result}")
