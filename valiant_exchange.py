@@ -83,24 +83,31 @@ class ValiantHyperliquidExchange:
     def get_balance(self) -> float:
         """Lấy số dư tài khoản (hỗ trợ Unified Account)"""
         try:
+            logger.info(f"Checking balance for address: {self.master_address}")
+            
             # 1. Thử lấy từ Perp account trước
             state = self.info.user_state(self.master_address)
+            logger.debug(f"User state response: {state}")
             margin = state.get("marginSummary", {})
             perp_balance = float(margin.get("accountValue", 0))
+            logger.info(f"Perp accountValue: ${perp_balance:.2f}")
             
-            # 2. Nếu Perp = 0, thử lấy từ Spot (Unified Account)
-            if perp_balance < 0.01:
-                try:
-                    spot_state = self.info.spot_user_state(self.master_address)
-                    spot_balances = spot_state.get("balances", [])
-                    for bal in spot_balances:
-                        if bal.get("coin") == "USDC":
-                            spot_usdc = float(bal.get("total", 0))
-                            if spot_usdc > 0:
-                                logger.info(f"Unified Account: Using Spot USDC ${spot_usdc:.2f}")
-                                return spot_usdc
-                except Exception as spot_err:
-                    logger.debug(f"Không lấy được Spot balance: {spot_err}")
+            # 2. Thử lấy từ Spot (Unified Account)
+            try:
+                spot_state = self.info.spot_user_state(self.master_address)
+                logger.debug(f"Spot state response: {spot_state}")
+                spot_balances = spot_state.get("balances", [])
+                logger.info(f"Spot balances: {spot_balances}")
+                
+                for bal in spot_balances:
+                    coin = bal.get("coin", "")
+                    total = float(bal.get("total", 0))
+                    logger.info(f"  - {coin}: {total}")
+                    if coin == "USDC" and total > 0:
+                        logger.info(f"Unified Account: Using Spot USDC ${total:.2f}")
+                        return total
+            except Exception as spot_err:
+                logger.warning(f"Không lấy được Spot balance: {spot_err}")
             
             return perp_balance
         except Exception as e:
