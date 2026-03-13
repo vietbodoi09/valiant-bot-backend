@@ -28,6 +28,7 @@ def check_lighter_config():
     """Kiểm tra cấu hình Lighter và log warnings nếu có vấn đề"""
     lighter_keys = os.getenv("LIGHTER_API_PRIVATE_KEYS")
     lighter_account = os.getenv("LIGHTER_ACCOUNT_INDEX", "0")
+    lighter_api_key_idx = os.getenv("LIGHTER_API_KEY_INDEX")
     
     if not lighter_keys:
         logger.warning("LIGHTER_API_PRIVATE_KEYS not set - Lighter trading will fail")
@@ -36,16 +37,23 @@ def check_lighter_config():
     try:
         keys = json.loads(lighter_keys)
         account_idx = int(lighter_account)
+        # Use api_key_index to lookup in keys dict, NOT account_index
+        # keys dict format: {"2": "private_key"} where "2" is the API key index
+        # account_index is the Lighter account ID (e.g., 719083), NOT a key in the dict
+        if lighter_api_key_idx is not None:
+            api_key_idx = int(lighter_api_key_idx)
+        else:
+            api_key_idx = int(list(keys.keys())[0]) if keys else 0
         
-        logger.info(f"Lighter config check: Found keys for accounts: {list(keys.keys())}")
-        logger.info(f"Lighter config check: Using account index: {account_idx}")
+        logger.info(f"Lighter config check: Found keys for API key indices: {list(keys.keys())}")
+        logger.info(f"Lighter config check: Using account index: {account_idx}, API key index: {api_key_idx}")
         
-        if str(account_idx) not in keys:
-            logger.error(f"CRITICAL: Account {account_idx} not found in LIGHTER_API_PRIVATE_KEYS!")
-            logger.error(f"Available accounts: {list(keys.keys())}")
+        if str(api_key_idx) not in keys:
+            logger.error(f"CRITICAL: API key index {api_key_idx} not found in LIGHTER_API_PRIVATE_KEYS!")
+            logger.error(f"Available API key indices: {list(keys.keys())}")
             logger.error("Bot will fail with 403 errors when trying to access Lighter API")
         else:
-            logger.info(f"Account {account_idx} key found: {'Yes (length: ' + str(len(keys[str(account_idx)])) + ')' if keys.get(str(account_idx)) else 'No'}")
+            logger.info(f"API key index {api_key_idx} found: {'Yes (length: ' + str(len(keys[str(api_key_idx)])) + ')' if keys.get(str(api_key_idx)) else 'No'}")
     except json.JSONDecodeError as e:
         logger.error(f"LIGHTER_API_PRIVATE_KEYS is not valid JSON: {e}")
     except Exception as e:

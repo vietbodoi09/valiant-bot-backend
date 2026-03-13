@@ -68,7 +68,8 @@ def main():
     
     # Start ngrok tunnel
     print("🌐 Starting ngrok tunnel...")
-    public_url = ngrok.connect(8000, "http")
+    tunnel = ngrok.connect(8000, "http")
+    public_url = tunnel.public_url  # Get the actual URL string
     print(f"\n{'='*60}")
     print(f"🎉 PUBLIC URL: {public_url}")
     print(f"{'='*60}\n")

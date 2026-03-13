@@ -101,28 +101,30 @@ class LighterSDKTrader:
         except Exception as e:
             logger.warning(f"Failed to create api_key_config.json: {e}")
         
-        # Validate account index exists
-        if self.account_index not in self.api_private_keys:
+        # Validate api_key_index exists in private keys
+        # Note: api_private_keys is keyed by API key index (e.g., 2), NOT account_index (e.g., 719083)
+        if self.api_key_index not in self.api_private_keys:
             available = list(self.api_private_keys.keys())
             raise ValueError(
-                f"Account {self.account_index} not found in private keys! "
-                f"Available accounts: {available}. "
-                f"Check LIGHTER_ACCOUNT_INDEX matches the keys in LIGHTER_API_PRIVATE_KEYS"
+                f"API key index {self.api_key_index} not found in private keys! "
+                f"Available API key indices: {available}. "
+                f"Check LIGHTER_API_KEY_INDEX matches the keys in LIGHTER_API_PRIVATE_KEYS"
             )
         
-        logger.info(f"Lighter config: {self.base_url}, Account {self.account_index}")
-        logger.info(f"Private key available for account {self.account_index}: {'Yes' if self.account_index in self.api_private_keys else 'No'}")
+        logger.info(f"Lighter config: {self.base_url}, Account {self.account_index}, API key index {self.api_key_index}")
+        logger.info(f"Private key available for API key index {self.api_key_index}: {'Yes' if self.api_key_index in self.api_private_keys else 'No'}")
     
     async def connect(self):
         """Khởi tạo kết nối"""
         try:
             # REST API client cho read operations
-            api_key = self.api_private_keys.get(self.account_index, "")
+            # Use api_key_index to get the private key, NOT account_index
+            api_key = self.api_private_keys.get(self.api_key_index, "")
             config = lighter.Configuration(host=self.base_url, api_key=api_key)
             self.api_client = lighter.ApiClient(configuration=config)
             
             if api_key:
-                logger.info(f"API Key configured for account {self.account_index}")
+                logger.info(f"API Key configured for account {self.account_index} using API key index {self.api_key_index}")
             
             # Signer client cho trading
             # account_index: Lighter account ID (e.g., 719083)
