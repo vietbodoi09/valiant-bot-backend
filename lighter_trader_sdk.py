@@ -53,8 +53,25 @@ class LighterSDKTrader:
     
     def _load_config(self):
         """Load config từ file hoặc env"""
+        # Load từ env (ưu tiên)
+        keys_json = os.getenv("LIGHTER_API_PRIVATE_KEYS")
+        account_index_str = os.getenv("LIGHTER_ACCOUNT_INDEX", "0")
+        
+        if keys_json:
+            try:
+                parsed_keys = json.loads(keys_json)
+                self.api_private_keys = {int(k): v for k, v in parsed_keys.items()}
+                self.account_index = int(account_index_str)
+                logger.info(f"Loaded private keys for accounts: {list(self.api_private_keys.keys())}")
+                
+                # Create api_key_config.json file for SDK compatibility
+                self._create_config_file()
+                return
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid LIGHTER_API_PRIVATE_KEYS format (must be valid JSON): {e}")
+        
+        # Fallback: Load từ file
         if os.path.exists(self.config_file):
-            # Load từ file
             with open(self.config_file) as f:
                 cfg = json.load(f)
             self.base_url = cfg["baseUrl"]
@@ -62,20 +79,21 @@ class LighterSDKTrader:
             # Convert string keys to int
             self.api_private_keys = {int(k): v for k, v in cfg["privateKeys"].items()}
         else:
-            # Load từ env
-            keys_json = os.getenv("LIGHTER_API_PRIVATE_KEYS")
-            account_index_str = os.getenv("LIGHTER_ACCOUNT_INDEX", "0")
-            self.account_index = int(account_index_str)
-            
-            if keys_json:
-                try:
-                    parsed_keys = json.loads(keys_json)
-                    self.api_private_keys = {int(k): v for k, v in parsed_keys.items()}
-                    logger.info(f"Loaded private keys for accounts: {list(self.api_private_keys.keys())}")
-                except json.JSONDecodeError as e:
-                    raise ValueError(f"Invalid LIGHTER_API_PRIVATE_KEYS format (must be valid JSON): {e}")
-            else:
-                raise ValueError("No Lighter config found. Set LIGHTER_CONFIG or LIGHTER_API_PRIVATE_KEYS")
+            raise ValueError("No Lighter config found. Set LIGHTER_API_PRIVATE_KEYS env var")
+    
+    def _create_config_file(self):
+        """Create api_key_config.json from env vars for SDK compatibility"""
+        try:
+            cfg = {
+                "baseUrl": self.base_url,
+                "accountIndex": self.account_index,
+                "privateKeys": {str(k): v for k, v in self.api_private_keys.items()}
+            }
+            with open("./api_key_config.json", "w") as f:
+                json.dump(cfg, f, indent=2)
+            logger.info("Created api_key_config.json from env vars")
+        except Exception as e:
+            logger.warning(f"Failed to create api_key_config.json: {e}")
         
         # Validate account index exists
         if self.account_index not in self.api_private_keys:
