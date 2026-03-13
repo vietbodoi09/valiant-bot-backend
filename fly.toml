@@ -1,8 +1,8 @@
 app = "valiant-bot-backend"
-primary_region = "sin"  # Singapore - close to VN
+primary_region = "sin"
 
 [build]
-  builder = "paketobuildpacks/builder:base"
+  dockerfile = "Dockerfile"
 
 [env]
   PORT = "8080"
@@ -11,11 +11,11 @@ primary_region = "sin"  # Singapore - close to VN
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = false  # Keep running continuously
+  auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 1
 
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 512  # Free tier
+  memory_mb = 512
