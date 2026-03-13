@@ -193,13 +193,15 @@ class HyperliquidTrader:
                             logger.info(f"  ✅ Position detected after cancel! Size={pos_size:.6f} BTC")
                             return {"status": "filled", "filled_size": pos_size, "note": "filled_during_cancel"}
                         
-                        logger.error(f"  ❌ Maker order failed to fill after {max_wait_sec}s")
-                        return {"error": f"Maker order timeout after {max_wait_sec}s, not filled", "status": "error"}
+                        logger.warning(f"  ⏰ Maker timeout after {max_wait_sec}s, falling back to MARKET")
+                        return self.market_order(side, size_usd)
                     
-                    # Error trong status
+                    # Error trong status - fallback to market
                     if "error" in status:
-                        logger.error(f"  ALO rejected: {status['error']}")
-                        return {"error": status["error"], "status": "error"}
+                        error_msg = status['error']
+                        logger.error(f"  ALO rejected: {error_msg}")
+                        logger.warning(f"  Falling back to MARKET order (taker fee)")
+                        return self.market_order(side, size_usd)
             
             # Không parse được → error
             logger.error(f"  Unexpected response: {result}")
