@@ -351,5 +351,9 @@ class BotRunner:
             try:
                 # Close positions
                 await self._close_hedge()
+                # Clear positions in UI
+                self.manager.update_position("hyperliquid", None)
+                self.manager.update_position("lighter", None)
+                self.manager.add_log("All positions closed")
             except Exception as e:
                 self.manager.add_log(f"Error closing positions: {e}")
