@@ -93,15 +93,17 @@ class LighterSDKTrader:
         """Khởi tạo kết nối"""
         try:
             # REST API client cho read operations
-            config = lighter.Configuration(host=self.base_url)
-            self.api_client = lighter.ApiClient(configuration=config)
-            
-            # Add API key to default headers for all requests
             api_key = self.api_private_keys.get(self.account_index, "")
+            
+            # Try with query parameter auth (some APIs use this)
+            config = lighter.Configuration(host=self.base_url)
             if api_key:
-                self.api_client.set_default_header('X-API-Key', api_key)
-                self.api_client.set_default_header('Authorization', f'Bearer {api_key}')
-                logger.info(f"API Key header set for account {self.account_index}")
+                # Add API key as default query param
+                config.api_key['api_key'] = api_key
+                config.api_key_prefix['api_key'] = 'Bearer'
+                logger.info(f"API Key configured for account {self.account_index}")
+            
+            self.api_client = lighter.ApiClient(configuration=config)
             
             # Signer client cho trading (đã fix để chạy trên Windows)
             self.signer_client = SignerClient(
@@ -200,6 +202,26 @@ class LighterSDKTrader:
     async def get_balance(self, token: str = "USDC") -> float:
         """Lấy số dư"""
         try:
+            # Try with raw requests first to test auth
+            import aiohttp
+            api_key = self.api_private_keys.get(self.account_index, "")
+            
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'Authorization': f'Bearer {api_key}',
+                    'Content-Type': 'application/json'
+                }
+                url = f"{self.base_url}/v1/account?by=index&value={self.account_index}"
+                
+                logger.debug(f"Testing balance API with auth header...")
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status == 403:
+                        text = await resp.text()
+                        logger.error(f"Raw request 403: {text}")
+                    elif resp.status == 200:
+                        logger.info(f"Raw request success! Balance API accessible")
+            
+            # Fallback to SDK
             account_api = lighter.AccountApi(self.api_client)
             result = await account_api.account(by="index", value=str(self.account_index))
             
