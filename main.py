@@ -110,12 +110,12 @@ class BotSession:
             self._broadcast_task = asyncio.create_task(self._flush_log_batch())
     
     async def _flush_log_batch(self):
-        """Flush batched logs every 100ms"""
-        await asyncio.sleep(0.1)
+        """Flush batched logs every 50ms"""
+        await asyncio.sleep(0.05)
         if self._log_batch:
             await self.broadcast({
                 "type": "log",
-                "data": self._log_batch[-1]  # Send only latest log to reduce traffic
+                "data": self._log_batch  # Send all batched logs
             })
             self._log_batch = []
     
