@@ -141,9 +141,11 @@ class HyperliquidTrader:
                 return {"error": "Cannot get price", "status": "error"}
             
             size_btc = size_usd / price
+            is_buy = side.lower() in ("long", "buy")
             
             # 1. Đặt maker order
             result = self._maker_order(side, size_btc, price)
+            limit_price = None  # Will be set from BBO in _maker_order
             
             if result.get("error"):
                 logger.error(f"  Maker order failed: {result.get('error')}")
@@ -214,17 +216,17 @@ class HyperliquidTrader:
                         if "immediately matched" in error_msg.lower() or "post only" in error_msg.lower():
                             logger.info(f"  Retrying ALO with adjusted price...")
                             # Wait a moment and get fresh BBO
-                            import time
                             time.sleep(0.5)
                             fresh_bbo = self.get_bbo()
                             if fresh_bbo:
                                 # Adjust price by 1 tick away from mid
                                 TICK = 1.0
+                                old_price = fresh_bbo["bid"] if is_buy else fresh_bbo["ask"]
                                 if is_buy:
                                     new_price = fresh_bbo["bid"] - TICK
                                 else:
                                     new_price = fresh_bbo["ask"] + TICK
-                                logger.info(f"  Retrying ALO @ ${new_price:.1f} (was ${limit_price:.1f})")
+                                logger.info(f"  Retrying ALO @ ${new_price:.1f} (was ${old_price:.1f})")
                                 # Recalculate size for new price
                                 new_size_btc = size_usd / new_price
                                 return self._maker_order_with_price(side, new_size_btc, new_price)
