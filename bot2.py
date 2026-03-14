@@ -415,11 +415,12 @@ class Bot2:
     - MODE 2: Delta hedge HL+Paradex (hold lâu, farm OI)
     """
     
-    def __init__(self, config: TradeConfig = None):
+    def __init__(self, config: TradeConfig = None, update_callback=None):
         self.config = config or TradeConfig()
         self.hl = HyperliquidTrader()
         self.lighter = LighterTraderWrapper()
         self.mode: Literal["spam", "hedge", "off"] = "off"
+        self.update_callback = update_callback  # Callback to send data to frontend
         
         # Stats
         self.stats = {
@@ -559,6 +560,10 @@ class Bot2:
             # Kiểm tra balance Lighter TRƯỚC (dùng hết API read ở đây)
             lighter_balance = await self.lighter.trader.get_balance()
             logger.info(f"  Lighter balance: ${lighter_balance:.2f}")
+            
+            # Gửi balances về frontend
+            if self.update_callback:
+                await self.update_callback("balances", {"lighter": lighter_balance, "hyperliquid": 0})
             
             # ⚠️ CHECK LIGHTER STALE POSITION (từ lần trước close fail)
             lighter_existing = await self.lighter.get_position()

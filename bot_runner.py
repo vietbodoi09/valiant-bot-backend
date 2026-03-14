@@ -18,6 +18,19 @@ class BotRunner:
         self.is_running = False
         self.bot2 = None
         self._stop_event = asyncio.Event()
+    
+    async def _handle_bot_update(self, update_type: str, data: dict):
+        """Handle updates from Bot2 and send to frontend via WebSocket"""
+        try:
+            if update_type == "balances":
+                self.session.update_balances(data)
+            elif update_type == "stats":
+                self.session.update_stats(data)
+            elif update_type == "position":
+                # Handle position updates if needed
+                pass
+        except Exception as e:
+            logger.error(f"Failed to handle bot update: {e}")
         
     async def run(self):
         """Main bot loop - wraps Bot2"""
@@ -57,8 +70,8 @@ class BotRunner:
             
             self.session.add_log(f"Config: cycles={hedge_cycles}, auto_reenter={auto_reenter}, hold_hours={trade_config.hedge_hold_hours}h")
             
-            # Create Bot2 instance
-            self.bot2 = Bot2(trade_config)
+            # Create Bot2 instance with callback to send data to frontend
+            self.bot2 = Bot2(trade_config, update_callback=self._handle_bot_update)
             
             # Override bot2's logger to send to session
             self._setup_logging_override()
