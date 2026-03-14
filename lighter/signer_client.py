@@ -36,7 +36,8 @@ class SignerClient:
         
         self.session.headers.update({
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json, text/plain, */*',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         })
         self._connected = False
         logger.info(f"SignerClient initialized for account {account_index} (API key {api_key_index})")
@@ -100,7 +101,7 @@ class SignerClient:
             
             # Submit to Lighter API
             response = self.session.post(
-                f"{self.url}/v1/order",
+                f"{self.url}/api/v1/order",
                 json=order_payload,
                 timeout=30
             )
@@ -130,7 +131,7 @@ class SignerClient:
         """Cancel an order"""
         try:
             response = self.session.post(
-                f"{self.url}/v1/cancelOrder",
+                f"{self.url}/api/v1/cancelOrder",
                 json={
                     "order_id": order_id,
                     "account_index": self.account_index,
@@ -147,7 +148,7 @@ class SignerClient:
         """Get USDC balance"""
         try:
             response = self.session.get(
-                f"{self.url}/v1/account?by=index&value={self.account_index}",
+                f"{self.url}/api/v1/account?by=index&value={self.account_index}",
                 timeout=10
             )
             if response.status_code == 200:
@@ -165,7 +166,7 @@ class SignerClient:
         """Get position for a market"""
         try:
             response = self.session.get(
-                f"{self.url}/v1/account?by=index&value={self.account_index}",
+                f"{self.url}/api/v1/account?by=index&value={self.account_index}",
                 timeout=10
             )
             if response.status_code == 200:

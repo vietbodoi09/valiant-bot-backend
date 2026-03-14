@@ -117,14 +117,13 @@ class LighterSDKTrader:
     async def connect(self):
         """Khởi tạo kết nối"""
         try:
-            # REST API client cho read operations
-            # Use api_key_index to get the private key, NOT account_index
-            api_key = self.api_private_keys.get(self.api_key_index, "")
-            config = lighter.Configuration(host=self.base_url, api_key=api_key)
+            # REST API client cho read operations (public endpoints - NO auth needed)
+            # Private key is only used for signing transactions via SignerClient
+            config = lighter.Configuration(host=self.base_url)
             self.api_client = lighter.ApiClient(configuration=config)
             
-            if api_key:
-                logger.info(f"API Key configured for account {self.account_index} using API key index {self.api_key_index}")
+            logger.info(f"REST API client configured for {self.base_url} (no auth - public endpoints)")
+            logger.info(f"Account {self.account_index}, API key index {self.api_key_index}")
             
             # Signer client cho trading
             # account_index: Lighter account ID (e.g., 719083)
@@ -174,12 +173,9 @@ class LighterSDKTrader:
                 self._market_info_cache[market_id] = info
                 logger.info(f"Market {market_id} info: size_decimals={info['size_decimals']}, price_decimals={info['price_decimals']}")
                 return info
-        except lighter.exceptions.ApiException as e:
-            if e.status == 403:
-                logger.error(f"Market info API 403: Cannot access market {market_id}. API authentication failed.")
-            logger.debug(f"Failed to get market info: {e.status} - {e.reason}")
-        
-        # Fallback defaults từ API data đã biết
+        except Exception as e:
+            logger.warning(f"API error: {e}")
+
         defaults = {
             1: {"size_decimals": 5, "price_decimals": 1, "min_base_amount": 0.0002},   # BTC
             0: {"size_decimals": 4, "price_decimals": 2, "min_base_amount": 0.001},     # ETH  
@@ -213,12 +209,9 @@ class LighterSDKTrader:
                 if market_id_attr == market_id:
                     return float(getattr(r, 'rate', getattr(r, 'funding_rate', 0)))
             return 0.0
-        except lighter.exceptions.ApiException as e:
-            if e.status == 403:
-                logger.error(f"Funding API 403: {e.body}")
-            else:
-                logger.warning(f"Funding API error {e.status}: {e.reason}")
-            return 0.0
+        except Exception as e:
+            logger.warning(f"API error: {e}")
+
         except Exception as e:
             logger.debug(f"Failed to get funding rate: {e}")
             return 0.0
@@ -226,33 +219,7 @@ class LighterSDKTrader:
     async def get_balance(self, token: str = "USDC") -> float:
         """Lấy số dư"""
         try:
-            # Try with raw requests first to test auth
-            import aiohttp
-            api_key = self.api_private_keys.get(self.api_key_index, "")
-            
-            async with aiohttp.ClientSession() as session:
-                headers = {
-                    'Authorization': f'Bearer {api_key}',
-                    'Content-Type': 'application/json'
-                }
-                url = f"{self.base_url}/v1/account?by=index&value={self.account_index}"
-                
-                logger.debug(f"Testing balance API with auth header...")
-                logger.info(f"Request URL: {url}")
-                logger.info(f"Account index: {self.account_index}")
-                async with session.get(url, headers=headers) as resp:
-                    text = await resp.text()
-                    if resp.status == 403:
-                        logger.error(f"Raw request 403 - Response: '{text}'")
-                        logger.error(f"Headers sent: {list(headers.keys())}")
-                        logger.error("CAUSE: Account not activated on Lighter. Visit https://zklighter.io to deposit USDC first.")
-                    elif resp.status == 200:
-                        logger.info(f"Raw request success! Balance API accessible")
-                        logger.info(f"Response: {text[:200]}")
-                    else:
-                        logger.warning(f"Raw request {resp.status}: {text[:200]}")
-            
-            # Fallback to SDK
+            # Use SDK - /v1/account is a public endpoint, no auth needed
             account_api = lighter.AccountApi(self.api_client)
             result = await account_api.account(by="index", value=str(self.account_index))
             
@@ -276,14 +243,9 @@ class LighterSDKTrader:
                         return float(getattr(asset, 'available', 0))
                     
             return 0.0
-        except lighter.exceptions.ApiException as e:
-            if e.status == 403:
-                logger.error(f"Account API 403: Cannot access account {self.account_index}")
-                logger.error(f"Response body: {e.body}")
-                logger.error("Possible causes: Account not registered, key expired, or insufficient permissions")
-            else:
-                logger.warning(f"Account API error {e.status}: {e.reason}")
-            return 0.0
+        except Exception as e:
+            logger.warning(f"API error: {e}")
+
         except Exception as e:
             logger.debug(f"Failed to get balance: {e}")
             return 0.0
@@ -318,10 +280,9 @@ class LighterSDKTrader:
                             "liquidation_price": float(p.liquidation_price) if p.liquidation_price else 0,
                         }
             return None
-        except lighter.exceptions.ApiException as e:
-            if e.status == 403:
-                logger.error(f"Position API 403: Cannot access account {self.account_index}")
-            return None
+        except Exception as e:
+            logger.warning(f"API error: {e}")
+
         except Exception as e:
             logger.debug(f"Failed to get position: {e}")
             return None
@@ -341,10 +302,9 @@ class LighterSDKTrader:
                     return float(last_price)
                     
             return None
-        except lighter.exceptions.ApiException as e:
-            if e.status == 403:
-                logger.error(f"Price API 403: {e.body}")
-            return None
+        except Exception as e:
+            logger.warning(f"API error: {e}")
+
         except Exception as e:
             logger.debug(f"Failed to get price: {e}")
             return None
