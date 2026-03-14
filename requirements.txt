@@ -13,4 +13,5 @@ hyperliquid-python-sdk>=0.9.0
 eth-account>=0.12.0
 web3>=6.20.0
 
-# Lighter SDK is now included as local stub module in ./lighter/
+# Lighter - official SDK with proper transaction signing
+git+https://github.com/elliottech/lighter-python.git

@@ -879,9 +879,9 @@ class Bot2:
         self.mode = "off"
         logger.info("\n🏁 Hedge mode completed.")
         
-        # Export báo cáo Excel
-        if self.cycle_reports:
-            self._export_report()
+        # Export báo cáo Excel - DISABLED (web interface)
+        # if self.cycle_reports:
+        #     self._export_report()
     
     async def _run_single_hedge_cycle(self) -> bool:
         """
@@ -1028,152 +1028,8 @@ class Bot2:
         return size_usd * round_trip_fee
     
     def _export_report(self):
-        """Xuất báo cáo Excel sau khi chạy xong tất cả cycles"""
-        try:
-            from openpyxl import Workbook
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-            from openpyxl.utils import get_column_letter
-            
-            wb = Workbook()
-            
-            # ═══ Sheet 1: SUMMARY ═══
-            ws = wb.active
-            ws.title = "Summary"
-            
-            # Header styling
-            header_font = Font(bold=True, color="FFFFFF", size=11, name="Arial")
-            header_fill = PatternFill("solid", fgColor="2F5496")
-            data_font = Font(size=10, name="Arial")
-            money_green = Font(size=10, name="Arial", color="008000")
-            money_red = Font(size=10, name="Arial", color="FF0000")
-            border = Border(
-                bottom=Side(style="thin", color="D9D9D9"),
-            )
-            center = Alignment(horizontal="center", vertical="center")
-            
-            # Title
-            ws.merge_cells("A1:H1")
-            ws["A1"] = "BOT 2 - DELTA HEDGE REPORT"
-            ws["A1"].font = Font(bold=True, size=14, name="Arial", color="2F5496")
-            ws["A1"].alignment = Alignment(horizontal="center")
-            
-            # Summary info
-            ws["A3"] = "Generated"
-            ws["B3"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            ws["A4"] = "Total Cycles"
-            ws["B4"] = len(self.cycle_reports)
-            ws["A5"] = "Size/Leg"
-            ws["B5"] = f"${self.config.size_usd:.0f}"
-            ws["A6"] = "Leverage"
-            ws["B6"] = f"{self.config.hedge_leverage}x"
-            ws["A7"] = "Hold Time"
-            ws["B7"] = f"{self.config.hedge_hold_hours}h"
-            
-            for row in range(3, 8):
-                ws[f"A{row}"].font = Font(bold=True, size=10, name="Arial")
-                ws[f"B{row}"].font = data_font
-            
-            # Totals
-            total_hl_pnl = sum(c["hl_pnl"] for c in self.cycle_reports)
-            total_lighter_pnl = sum(c["lighter_pnl"] for c in self.cycle_reports)
-            total_net_pnl = sum(c["net_pnl"] for c in self.cycle_reports)
-            total_fee = sum(c["fee_hl"] for c in self.cycle_reports)
-            total_hold = sum(c["hold_minutes"] for c in self.cycle_reports)
-            
-            ws["D3"] = "HL PnL"
-            ws["E3"] = total_hl_pnl
-            ws["E3"].number_format = '$#,##0.0000'
-            ws["E3"].font = money_green if total_hl_pnl >= 0 else money_red
-            ws["D4"] = "Lighter PnL (est)"
-            ws["E4"] = total_lighter_pnl
-            ws["E4"].number_format = '$#,##0.0000'
-            ws["E4"].font = money_green if total_lighter_pnl >= 0 else money_red
-            ws["D5"] = "Net PnL"
-            ws["E5"] = total_net_pnl
-            ws["E5"].number_format = '$#,##0.0000'
-            ws["E5"].font = money_green if total_net_pnl >= 0 else money_red
-            ws["D6"] = "Total HL Fee"
-            ws["E6"] = total_fee
-            ws["E6"].number_format = '$#,##0.0000'
-            ws["D7"] = "Net After Fee"
-            ws["E7"] = total_net_pnl - total_fee
-            ws["E7"].number_format = '$#,##0.0000'
-            ws["E7"].font = Font(bold=True, size=11, name="Arial", color="008000" if (total_net_pnl - total_fee) >= 0 else "FF0000")
-            ws["D8"] = "Total Hold"
-            ws["E8"] = f"{total_hold:.0f} min"
-            
-            for row in range(3, 9):
-                ws[f"D{row}"].font = Font(bold=True, size=10, name="Arial")
-            
-            # ═══ Sheet 2: CYCLES DETAIL ═══
-            ws2 = wb.create_sheet("Cycles")
-            
-            headers = [
-                "Cycle", "Entry Time", "Exit Time", "Hold (min)",
-                "HL Side", "Lighter Side", "Size ($)", "Leverage",
-                "Entry Price", "Exit Price", "Price Change",
-                "HL Entry", "Lighter Entry", "Entry Diff",
-                "HL Funding%", "Lighter Funding%",
-                "HL PnL ($)", "Lighter PnL ($)", "Net PnL ($)", 
-                "HL Fee ($)", "Net After Fee ($)", "Close Reason"
-            ]
-            
-            # Write headers
-            for col, h in enumerate(headers, 1):
-                cell = ws2.cell(row=1, column=col, value=h)
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = center
-            
-            # Write data
-            for i, c in enumerate(self.cycle_reports, 2):
-                price_change = c["exit_price"] - c["entry_price"]
-                entry_diff = abs(c["hl_entry"] - c["lighter_entry"])
-                net_after_fee = c["net_pnl"] - c["fee_hl"]
-                
-                row_data = [
-                    c["cycle"], c["entry_time"], c["exit_time"], c["hold_minutes"],
-                    c["hl_side"].upper(), c["lighter_side"].upper(), c["size_usd"], c["leverage"],
-                    c["entry_price"], c["exit_price"], round(price_change, 2),
-                    c["hl_entry"], c["lighter_entry"], round(entry_diff, 2),
-                    c["hl_funding"], c["lighter_funding"],
-                    c["hl_pnl"], c["lighter_pnl"], c["net_pnl"],
-                    c["fee_hl"], round(net_after_fee, 4), c["close_reason"]
-                ]
-                
-                for col, val in enumerate(row_data, 1):
-                    cell = ws2.cell(row=i, column=col, value=val)
-                    cell.font = data_font
-                    cell.border = border
-                    if col in (17, 18, 19):  # PnL columns
-                        cell.number_format = '$#,##0.0000'
-                        cell.font = money_green if val >= 0 else money_red
-                    elif col == 21:  # Net After Fee
-                        cell.number_format = '$#,##0.0000'
-                        cell.font = money_green if val >= 0 else money_red
-                    elif col in (9, 10, 12, 13):  # Price columns
-                        cell.number_format = '#,##0.00'
-            
-            # Auto column widths
-            for ws_sheet in [ws, ws2]:
-                for col in range(1, ws_sheet.max_column + 1):
-                    max_len = 0
-                    for row in range(1, ws_sheet.max_row + 1):
-                        cell = ws_sheet.cell(row=row, column=col)
-                        if cell.value:
-                            max_len = max(max_len, len(str(cell.value)))
-                    ws_sheet.column_dimensions[get_column_letter(col)].width = min(max_len + 3, 25)
-            
-            # Save
-            filename = f"hedge_report_{time.strftime('%Y%m%d_%H%M%S')}.xlsx"
-            wb.save(filename)
-            logger.info(f"\n📊 Report saved: {filename}")
-            logger.info(f"   Cycles: {len(self.cycle_reports)} | HL PnL: ${total_hl_pnl:.4f} | Lighter PnL: ${total_lighter_pnl:.4f} | Fee: ${total_fee:.4f} | Net: ${total_net_pnl - total_fee:.4f}")
-            
-        except Exception as e:
-            logger.error(f"Failed to export report: {e}")
-            import traceback
-            traceback.print_exc()
+        """Xuất báo cáo Excel - DISABLED (web interface)"""
+        pass
     
     async def _monitor_hedge_cycle(self) -> str:
         """

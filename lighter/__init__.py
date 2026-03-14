@@ -22,15 +22,12 @@ class ApiClient:
     """REST API Client for Lighter"""
     
     # Browser-like headers to avoid Cloudflare blocking datacenter IPs
+    # NOTE: Do NOT include Accept-Encoding - proxy may not decompress gzip/br responses
     BROWSER_HEADERS = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'cross-site',
     }
     
     def __init__(self, configuration: Configuration = None):
@@ -54,23 +51,31 @@ class ApiClient:
         url = f"{self.config.host}{path}"
         try:
             response = self.session.request(method, url, **kwargs)
+            
             if response.status_code == 200:
-                return response.json()
-            else:
-                body_preview = response.text[:500] if response.text else "(empty)"
-                logger.error(f"API error {response.status_code} for {path}: {body_preview}")
-                # If 403, try without proxy as fallback
-                if response.status_code == 403 and self.session.proxies:
-                    logger.info(f"Retrying {path} without proxy...")
+                try:
+                    return response.json()
+                except Exception as je:
+                    logger.warning(f"JSON parse failed for {path} via proxy, trying direct...")
+                    # Fallback: direct request without proxy
                     try:
-                        fallback = requests.get(url, headers=self.BROWSER_HEADERS, timeout=10)
-                        if fallback.status_code == 200:
-                            logger.info(f"Direct request succeeded for {path}!")
-                            return fallback.json()
-                        else:
-                            logger.error(f"Direct request also failed: {fallback.status_code}: {fallback.text[:200]}")
+                        direct = requests.get(url, headers=self.BROWSER_HEADERS, timeout=10)
+                        if direct.status_code == 200:
+                            return direct.json()
                     except Exception as e2:
-                        logger.error(f"Direct request exception: {e2}")
+                        logger.error(f"Direct fallback also failed: {e2}")
+                    return None
+            else:
+                logger.error(f"API error {response.status_code} for {path}")
+                # If error, try direct request without proxy
+                if self.session.proxies:
+                    try:
+                        direct = requests.get(url, headers=self.BROWSER_HEADERS, timeout=10)
+                        if direct.status_code == 200:
+                            logger.info(f"Direct request succeeded for {path}")
+                            return direct.json()
+                    except Exception as e2:
+                        logger.error(f"Direct request failed: {e2}")
                 return None
         except Exception as e:
             logger.error(f"API call failed: {e}")
@@ -126,17 +131,18 @@ class AccountApi:
     async def account(self, by: str = "index", value: str = "0") -> Any:
         """Get account details"""
         result = await self.client.call_api(f"/api/v1/account?by={by}&value={value}")
-        if result:
-            # Response may be wrapped: {"code":200, ...account_fields...}
-            # or direct account object
-            if isinstance(result, dict):
-                return DictObject({
-                    'accounts': [DictObject(result)]
-                })
-            elif isinstance(result, list):
-                return DictObject({
-                    'accounts': [DictObject(r) for r in result]
-                })
+        if result and isinstance(result, dict):
+            # Response format: {"code":200, "total":1, "accounts":[{...account data...}]}
+            if 'accounts' in result:
+                accs = result['accounts']
+                if isinstance(accs, list):
+                    return DictObject({
+                        'accounts': [DictObject(a) for a in accs]
+                    })
+            # Fallback: response IS the account object directly
+            return DictObject({
+                'accounts': [DictObject(result)]
+            })
         return None
 
 class DictObject:
