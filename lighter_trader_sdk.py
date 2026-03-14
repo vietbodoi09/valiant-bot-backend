@@ -228,7 +228,7 @@ class LighterSDKTrader:
         try:
             # Try with raw requests first to test auth
             import aiohttp
-            api_key = self.api_private_keys.get(self.account_index, "")
+            api_key = self.api_private_keys.get(self.api_key_index, "")
             
             async with aiohttp.ClientSession() as session:
                 headers = {
